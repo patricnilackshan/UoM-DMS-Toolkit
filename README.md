@@ -34,11 +34,13 @@
 
 ### 🗒️ Google Colab Notebook
 
-The easiest way to use the toolkit. No setup required.
+The easiest way to use the toolkit. No setup required — all link types including YouTube work out of the box.
 
 1. Open the notebook in [Google Colab](https://colab.research.google.com/github/patricnilackshan/UoM_DMS_Toolkit/blob/main/UoM_DMS_Toolkit.ipynb)
 2. Run the **Sign in** cell — enter your DMS username & password (dependencies install automatically)
 3. Run **Download**, **Upload**, **Share** cells in order
+
+> Filenames are automatically sanitized before upload — invalid characters are replaced with underscores.
 
 ### ⚙️ GitHub Actions Workflow
 
@@ -46,16 +48,48 @@ Download any file and upload it to DMS directly from GitHub — no Colab needed.
 
 1. Go to **Actions** → **Download and Upload to DMS** → **Run workflow**
 2. Fill in your DMS username, password, and the download link
-3. The workflow will download the file, zip it if multiple files are produced, upload to DMS, and print the shareable link
+3. The workflow downloads the file, zips if multiple files are produced, uploads to DMS, and prints the shareable link
 
 **Supported link types:**
 
-| Link | Handler |
-|---|---|
-| `magnet:?xt=urn:btih:...` | libtorrent |
-| `*.m3u8` | ffmpeg |
-| `youtube.com` / `youtu.be` | yt-dlp |
-| Any HTTP/HTTPS URL | requests |
+| Link | Handler | Works without extra setup |
+|---|---|---|
+| `magnet:?xt=urn:btih:...` | libtorrent | ✅ |
+| `*.m3u8` | ffmpeg | ✅ |
+| Any HTTP/HTTPS URL | requests | ✅ |
+| `youtube.com` / `youtu.be` | yt-dlp | ⚠️ Requires cookies (see Notes) |
+
+---
+
+## Notes
+
+### YouTube Downloads in GitHub Actions
+
+GitHub Actions runners use datacenter IPs that YouTube flags as bots, causing yt-dlp to fail with:
+
+```
+Sign in to confirm you're not a bot.
+```
+
+The fix is to provide your YouTube cookies so yt-dlp can authenticate. There are two ways:
+
+**Option 1 — Workflow input (one-time use):** Paste your cookies directly into the `youtube_cookies` field when running the workflow.
+
+**Option 2 — Repository secret (persistent):** Store your cookies as a secret named `YOUTUBE_COOKIES` under **Settings → Secrets and variables → Actions**. The workflow will use it automatically for every run.
+
+> The input takes priority over the secret if both are provided.
+
+**How to export YouTube cookies:**
+1. Install the [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) browser extension
+2. Go to [youtube.com](https://youtube.com) while signed in
+3. Click the extension → export in **Netscape format**
+4. Paste the content into the workflow input or save as the `YOUTUBE_COOKIES` secret
+
+> This issue does **not** affect the Google Colab notebook, as Colab IPs are not blocked by YouTube.
+
+### Filename Sanitization
+
+Filenames with spaces or special characters can cause issues when passed to shell commands like `curl`. Both the notebook and the workflow automatically sanitize filenames before upload — replacing any character outside `[a-zA-Z0-9_.]` with an underscore (spaces included).
 
 ---
 

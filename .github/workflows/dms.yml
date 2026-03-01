@@ -15,6 +15,10 @@ on:
         description: "Download Link (HTTP/HTTPS, YouTube, M3U8, or Magnet)"
         required: true
         type: string
+      youtube_cookies:
+        description: "YouTube cookies in Netscape format (required for YouTube links)"
+        required: false
+        type: string
 
 jobs:
   download-and-upload:
@@ -35,7 +39,11 @@ jobs:
       - name: Download file(s)
         env:
           DOWNLOAD_LINK: ${{ github.event.inputs.download_link }}
+          YOUTUBE_COOKIES_INPUT: ${{ github.event.inputs.youtube_cookies }}
+          YOUTUBE_COOKIES_SECRET: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
+          COOKIES="${YOUTUBE_COOKIES_INPUT:-$YOUTUBE_COOKIES_SECRET}"
+          [ -n "$COOKIES" ] && echo "$COOKIES" > /tmp/yt_cookies.txt
           python3 - <<'PYEOF'
           import os, sys, time, warnings, subprocess, re
 
@@ -80,12 +88,15 @@ jobs:
 
           def download_youtube(link):
               import yt_dlp
-              with yt_dlp.YoutubeDL({
+              opts = {
                   'outtmpl': f'{DIR}/%(title)s.%(ext)s',
                   'format': 'bestvideo+bestaudio/best',
                   'merge_output_format': 'mp4',
                   'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
-              }) as ydl:
+              }
+              if os.path.exists('/tmp/yt_cookies.txt'):
+                  opts['cookiefile'] = '/tmp/yt_cookies.txt'
+              with yt_dlp.YoutubeDL(opts) as ydl:
                   ydl.download([link])
               print("Downloaded successfully!")
 
@@ -113,7 +124,10 @@ jobs:
             ORIG=$(basename "$SRC")
             EXT="${ORIG##*.}"
             SAFE="$(echo "${ORIG%.*}" | tr -cd '[:alnum:] _' | tr ' ' '_').${EXT}"
-            [ "$ORIG" != "$SAFE" ] && mv "$SRC" "download/$SAFE" && echo "Renamed: $ORIG -> $SAFE"
+            if [ "$SRC" != "download/$SAFE" ]; then
+              mv "$SRC" "download/$SAFE"
+              [ "$ORIG" != "$SAFE" ] && echo "Renamed: $ORIG -> $SAFE"
+            fi
             echo "upload_path=download/$SAFE" >> $GITHUB_OUTPUT
             echo "upload_name=$SAFE"          >> $GITHUB_OUTPUT
 
@@ -158,5 +172,8 @@ jobs:
             -H "OCS-APIRequest: true" \
             "https://dms.uom.lk/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json")
 
-          URL=$(echo "$JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['ocs']['data']['url'])")
+          URL=$(echo "$JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); data=d.get('ocs',{}).get('data',{}); print(data.get('url','') if isinstance(data,dict) else '')")
+          if [ -z "$URL" ]; then
+            echo "Sharing failed. Response: $JSON"; exit 1
+          fi
           echo "DMS Link: $URL"

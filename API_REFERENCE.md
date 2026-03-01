@@ -31,7 +31,13 @@ yt-dlp -f "bestvideo+bestaudio/best" --merge-output-format mp4 -o "%(title)s.%(e
 ## 🧲 Download Torrent / Magnet Link
 
 ```bash
-aria2c --seed-time=0 <magnetLink>
+python3 -c "
+import libtorrent as lt, time
+ses = lt.session()
+h = lt.add_magnet_uri(ses, '<magnetLink>', {'save_path': './'})
+while not h.has_metadata(): time.sleep(1)
+while h.status().state != lt.torrent_status.seeding: time.sleep(1)
+"
 ```
 
 ---
