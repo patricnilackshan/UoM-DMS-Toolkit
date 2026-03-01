@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       dms_username:
-        description: "DMS Username"
-        required: true
+        description: "DMS Username (or set DMS_USERNAME secret)"
+        required: false
         type: string
       dms_password:
-        description: "DMS Password"
-        required: true
+        description: "DMS Password (or set DMS_PASSWORD secret)"
+        required: false
         type: string
       download_link:
         description: "Download Link (HTTP/HTTPS, YouTube, M3U8, or Magnet)"
@@ -23,12 +23,15 @@ on:
 jobs:
   download-and-upload:
     runs-on: ubuntu-latest
+    env:
+      DMS_USER: ${{ github.event.inputs.dms_username || secrets.DMS_USERNAME }}
+      DMS_PASS: ${{ github.event.inputs.dms_password || secrets.DMS_PASSWORD }}
 
     steps:
       - name: Mask sensitive inputs
         run: |
-          echo "::add-mask::${{ github.event.inputs.dms_username }}"
-          echo "::add-mask::${{ github.event.inputs.dms_password }}"
+          echo "::add-mask::$DMS_USER"
+          echo "::add-mask::$DMS_PASS"
 
       - name: Install dependencies
         run: |
@@ -146,7 +149,7 @@ jobs:
           echo "Uploading '$NAME'..."
 
           R=$(curl -s \
-            -u "${{ github.event.inputs.dms_username }}:${{ github.event.inputs.dms_password }}" \
+            -u "$DMS_USER:$DMS_PASS" \
             -T "$FILE" \
             -w "%{http_code}|%{size_upload}|%{speed_upload}|%{time_total}" \
             -o /dev/null \
@@ -166,7 +169,7 @@ jobs:
           NAME="${{ steps.prepare.outputs.upload_name }}"
 
           JSON=$(curl -s \
-            -u "${{ github.event.inputs.dms_username }}:${{ github.event.inputs.dms_password }}" \
+            -u "$DMS_USER:$DMS_PASS" \
             -X POST \
             -d "path=/$NAME&shareType=3&permissions=1" \
             -H "OCS-APIRequest: true" \
