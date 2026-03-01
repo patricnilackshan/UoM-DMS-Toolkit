@@ -1,98 +1,80 @@
-# UoM DMS Toolkit 💻
+<div align="center">
 
-## Introduction 📋
+# 🎓 UoM DMS Toolkit
 
-The **UoM DMS Toolkit** is designed to streamline file management tasks for students at the University of Moratuwa (UoM). This toolkit allows for data-free downloads/uploads and multimedia processing, including support for Torrents, YouTube videos, and M3U8 links. With this toolkit, you can say goodbye to bandwidth worries and focus on your education! 😁
+*Data-free downloads, uploads & sharing for UoM students*
 
-### Creator ✨
+**Torrents · YouTube · M3U8 · Direct Links**
 
-**Patric Nilackshan**  
-Email: [nilackshanp@gmail.com](mailto:nilackshanp@gmail.com)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/patricnilackshan/UoM_DMS_Toolkit/blob/main/UoM_DMS_Toolkit.ipynb)
+&nbsp;
+[![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-Workflow-2088FF?logo=githubactions&logoColor=white)](../../actions/workflows/dms.yml)
 
----
+<img src="https://visitor-badge.laobi.icu/badge?page_id=patricnilackshan.UoM_DMS_Toolkit" align="right"/>
 
-## Features 🌟
-
-- Download files from various sources: 📥
-  - Regular files 📄
-  - YouTube videos 🎥
-  - Torrents 🌐
-  - M3U8 streams 📺
-- Upload files to UoM DMS 📤
-- Share files from DMS 🔗
-- Get details of all shares in your DMS account 📋
-- Delete shares using Share ID 🗑️
-- Mount DMS WebDAV on your computer 💻
+</div>
 
 ---
 
-## Installation 🔧
+## Features
 
-This toolkit is designed to be used in a Jupyter Notebook environment.
-
-- Open the notebook [UoM DMS Toolkit](https://colab.research.google.com/github/patricnilackshan/UoM_DMS_Toolkit/blob/main/UoM_DMS_Toolkit_by_Patric.ipynb) in Google Colab. 🌐
+| | Feature |
+|---|---|
+| 📥 | Download from direct links, YouTube, M3U8 streams, and Magnet/Torrent links |
+| 📤 | Upload files directly to your UoM DMS account via WebDAV |
+| 🔗 | Share uploaded files and get a public DMS link instantly |
+| 📋 | View all shares in your DMS account |
+| 🗑️ | Delete shares by Share ID |
+| 🖴 | Mount DMS as a local drive on Windows & Linux |
+| ⚙️ | GitHub Actions workflow — download & upload without opening a browser |
 
 ---
 
-## Usage 🚀
+## Usage
 
-### Sign In to DMS 🔑
+### 🗒️ Google Colab Notebook
 
-Enter your UoM DMS username and password to authenticate.
+The easiest way to use the toolkit. No setup required.
 
-### Download File from URL 📥
+1. Open the notebook in [Google Colab](https://colab.research.google.com/github/patricnilackshan/UoM_DMS_Toolkit/blob/main/UoM_DMS_Toolkit.ipynb)
+2. Run the **Sign in** cell — enter your DMS username & password (dependencies install automatically)
+3. Run **Download**, **Upload**, **Share** cells in order
 
-- Enter the download link of the file you wish to download.
-- Specify a filename (required only for Torrents and direct downloads).
-- Choose between downloading Torrents, regular files, or YouTube videos.
+### ⚙️ GitHub Actions Workflow
 
-### Upload File to DMS 📤
+Download any file and upload it to DMS directly from GitHub — no Colab needed.
 
-- Upload the downloaded file to your DMS account.
-- Monitor upload progress in real-time ⏳.
+1. Go to **Actions** → **Download and Upload to DMS** → **Run workflow**
+2. Fill in your DMS username, password, and the download link
+3. The workflow will download the file, zip it if multiple files are produced, upload to DMS, and print the shareable link
 
-### Share File from the DMS 🔄
+**Supported link types:**
 
-- Easily create shares for files in your DMS account.
-- Obtain a share link for distribution 🔗.
+| Link | Handler |
+|---|---|
+| `magnet:?xt=urn:btih:...` | libtorrent |
+| `*.m3u8` | ffmpeg |
+| `youtube.com` / `youtu.be` | yt-dlp |
+| Any HTTP/HTTPS URL | requests |
 
-### Manage Shares 📊
+---
 
-- View all shares associated with your DMS account.
-- Delete shares using their Share ID 🗑️.
+## Mount DMS as a Local Drive
 
-### Mount DMS WebDAV 🖴
-
-- Instructions for mapping DMS as a local disk in Windows and Linux.
-
-#### To map DMS as a local disk in Windows 🪟
-
-Run this command in Command Prompt:
-
+**Windows 🪟** — Run in Command Prompt:
 ```
 net use Z: https://dms.uom.lk/remote.php/webdav/ /user:<userName> <userPassword>
 ```
 
-- Replace userName and userPassword with your actual values.
-
-#### To access DMS in Linux 🐧
-
-Enter the following address in the `Enter server address` field in your File Manager:
-
+**Linux 🐧** — Enter in File Manager → *Connect to Server*:
 ```
 davs://dms.uom.lk/remote.php/webdav/
 ```
 
 ---
 
-## Conclusion 😎
+<div align="center">
 
-The UoM DMS Toolkit provides a convenient way to manage files for educational purposes, enabling data-free downloads, uploads, and sharing of files and folders. 
+© **Patric Nilackshan** · [pnilackshan@gmail.com](mailto:pnilackshan@gmail.com)
 
----
-
-## © Patric Nilackshan
-For further information, please refer to the documentation or contact the author at
-Email: [nilackshanp@gmail.com](mailto:nilackshanp@gmail.com)
-
-<img align="right" src="https://visitor-badge.laobi.icu/badge?page_id=patricnilackshan.UoM_DMS_Toolkit" />
+</div>
