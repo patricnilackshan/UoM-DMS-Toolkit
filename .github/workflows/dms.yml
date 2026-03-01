@@ -1,0 +1,162 @@
+name: Download and Upload to DMS
+
+on:
+  workflow_dispatch:
+    inputs:
+      dms_username:
+        description: "DMS Username"
+        required: true
+        type: string
+      dms_password:
+        description: "DMS Password"
+        required: true
+        type: string
+      download_link:
+        description: "Download Link (HTTP/HTTPS, YouTube, M3U8, or Magnet)"
+        required: true
+        type: string
+
+jobs:
+  download-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mask sensitive inputs
+        run: |
+          echo "::add-mask::${{ github.event.inputs.dms_username }}"
+          echo "::add-mask::${{ github.event.inputs.dms_password }}"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y curl zip ffmpeg python3-libtorrent
+          pip install yt-dlp requests --quiet
+
+      - name: Download file(s)
+        env:
+          DOWNLOAD_LINK: ${{ github.event.inputs.download_link }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, sys, time, warnings, subprocess, re
+
+          DIR = "download"
+          os.makedirs(DIR, exist_ok=True)
+          link = os.environ["DOWNLOAD_LINK"]
+
+          def download_torrent(link):
+              import libtorrent as lt
+              with warnings.catch_warnings():
+                  warnings.simplefilter("ignore", DeprecationWarning)
+                  ses = lt.session()
+                  handle = lt.add_magnet_uri(ses, link, {'save_path': DIR, 'storage_mode': lt.storage_mode_t(2)})
+                  print("Fetching metadata..."); sys.stdout.flush()
+                  while not handle.has_metadata(): time.sleep(1)
+                  print(f"Downloading: {handle.get_torrent_info().name()}"); sys.stdout.flush()
+                  last = 0
+                  states = ['queued','checking','downloading metadata','downloading','finished','seeding','allocating','checking fastresume']
+                  while handle.status().state != lt.torrent_status.seeding:
+                      if time.time() - last >= 10:
+                          s = handle.status()
+                          print('%.2f%% (down: %.1f kB/s  up: %.1f kB/s  peers: %d)  %s' %
+                              (s.progress*100, s.download_rate/1000, s.upload_rate/1000, s.num_peers, states[s.state]))
+                          sys.stdout.flush(); last = time.time()
+                      time.sleep(1)
+                  print("Download complete!")
+
+          def download_file(link):
+              import requests
+              r = requests.get(link, stream=True)
+              cd = r.headers.get('Content-Disposition', '')
+              m = re.search(r'filename="?([^";\n]+)"?', cd)
+              fname = m.group(1).strip() if m else (os.path.basename(link.split('?')[0]) or 'Download')
+              path = os.path.join(DIR, fname)
+              if r.status_code == 200:
+                  with open(path, 'wb') as f:
+                      for chunk in r.iter_content(chunk_size=51200):
+                          if chunk: f.write(chunk)
+                  print(f"Downloaded: {path}")
+              else:
+                  print(f"Failed. HTTP {r.status_code}"); sys.exit(1)
+
+          def download_youtube(link):
+              import yt_dlp
+              with yt_dlp.YoutubeDL({
+                  'outtmpl': f'{DIR}/%(title)s.%(ext)s',
+                  'format': 'bestvideo+bestaudio/best',
+                  'merge_output_format': 'mp4',
+                  'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
+              }) as ydl:
+                  ydl.download([link])
+              print("Downloaded successfully!")
+
+          def download_m3u8(link):
+              subprocess.run(['ffmpeg', '-threads', '8', '-i', link, '-c', 'copy', f'{DIR}/stream.mp4'], check=True)
+
+          if link.startswith('magnet:'): download_torrent(link)
+          elif link.endswith('.m3u8'):   download_m3u8(link)
+          elif 'youtube.com' in link or 'youtu.be' in link: download_youtube(link)
+          else: download_file(link)
+          PYEOF
+          echo "Downloaded files:"; ls -lh download/
+
+      - name: Prepare upload
+        id: prepare
+        run: |
+          COUNT=$(find download/ -type f | wc -l)
+          echo "Files found: $COUNT"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No files downloaded!"; exit 1
+
+          elif [ "$COUNT" -eq 1 ]; then
+            SRC=$(find download/ -type f)
+            ORIG=$(basename "$SRC")
+            EXT="${ORIG##*.}"
+            SAFE="$(echo "${ORIG%.*}" | tr -cd '[:alnum:] _' | tr ' ' '_').${EXT}"
+            [ "$ORIG" != "$SAFE" ] && mv "$SRC" "download/$SAFE" && echo "Renamed: $ORIG -> $SAFE"
+            echo "upload_path=download/$SAFE" >> $GITHUB_OUTPUT
+            echo "upload_name=$SAFE"          >> $GITHUB_OUTPUT
+
+          else
+            ZIP="files_$(date +%Y%m%d_%H%M%S).zip"
+            echo "Zipping $COUNT files into $ZIP..."
+            zip -r "$ZIP" download/
+            echo "upload_path=$ZIP" >> $GITHUB_OUTPUT
+            echo "upload_name=$ZIP" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload to DMS
+        run: |
+          FILE="${{ steps.prepare.outputs.upload_path }}"
+          NAME="${{ steps.prepare.outputs.upload_name }}"
+          echo "Uploading '$NAME'..."
+
+          R=$(curl -s \
+            -u "${{ github.event.inputs.dms_username }}:${{ github.event.inputs.dms_password }}" \
+            -T "$FILE" \
+            -w "%{http_code}|%{size_upload}|%{speed_upload}|%{time_total}" \
+            -o /dev/null \
+            "https://dms.uom.lk/remote.php/webdav/$NAME")
+
+          CODE=$(echo "$R" | cut -d'|' -f1)
+          SIZE=$(echo "scale=2; $(echo "$R" | cut -d'|' -f2) / 1048576" | bc)
+          SPD=$(echo  "scale=2; $(echo "$R" | cut -d'|' -f3) / 1048576" | bc)
+          T=$(echo "$R" | cut -d'|' -f4)
+          echo "Size: ${SIZE} MB | Speed: ${SPD} MB/s | Time: ${T}s"
+
+          [[ "$CODE" =~ ^(200|201|204)$ ]] || { echo "Upload failed (HTTP $CODE)"; exit 1; }
+          echo "Upload successful! (HTTP $CODE)"
+
+      - name: Share file from DMS
+        run: |
+          NAME="${{ steps.prepare.outputs.upload_name }}"
+
+          JSON=$(curl -s \
+            -u "${{ github.event.inputs.dms_username }}:${{ github.event.inputs.dms_password }}" \
+            -X POST \
+            -d "path=/$NAME&shareType=3&permissions=1" \
+            -H "OCS-APIRequest: true" \
+            "https://dms.uom.lk/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json")
+
+          URL=$(echo "$JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['ocs']['data']['url'])")
+          echo "DMS Link: $URL"
